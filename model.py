@@ -14,6 +14,7 @@ from dataclasses import dataclass
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+# from torch.nn.attention.flex_attention import flex_attention, create_block_mask
 
 class LayerNorm(nn.Module):
     """ LayerNorm but with an optional bias. PyTorch doesn't support simply bias=False """
@@ -25,6 +26,9 @@ class LayerNorm(nn.Module):
 
     def forward(self, input):
         return F.layer_norm(input, self.weight.shape, self.weight, self.bias, 1e-5)
+
+def causal(b, h, q_idx, kv_idx):
+    return q_idx >= kv_idx
 
 class CausalSelfAttention(nn.Module):
 
@@ -48,6 +52,9 @@ class CausalSelfAttention(nn.Module):
             # causal mask to ensure that attention is only applied to the left in the input sequence
             self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
                                         .view(1, 1, config.block_size, config.block_size))
+        # self.register_buffer("block_mask", create_block_mask(causal, B=None, H=None, Q_LEN=context_length, KV_LEN=context_length))
+        # `create_block_mask` function does not support buffers, yet
+        # self.block_mask = create_block_mask(causal, B=None, H=None, Q_LEN=config.n_embd, KV_LEN=config.n_embd)
 
     def forward(self, x):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
@@ -62,6 +69,13 @@ class CausalSelfAttention(nn.Module):
         if self.flash:
             # efficient attention using Flash Attention CUDA kernels
             y = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=self.dropout if self.training else 0, is_causal=True)
+            # Ensure attn_mask is compatible with expected shape and `batch_first=True`
+            # No need to manually adjust for num_heads; ensure it's right for the sequence
+            # if self.context_length >= num_tokens:
+                # attn_mask = self.block_mask[:num_tokens, :num_tokens]
+            # else:
+                # attn_mask = self.block_mask[:self.context_length, :self.context_length]
+            # y = flex_attention(q, k, v, block_mask=attn_mask)
         else:
             # manual implementation of attention
             att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))

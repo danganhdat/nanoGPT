@@ -24,9 +24,11 @@ from contextlib import nullcontext
 
 import numpy as np
 import torch
+import torch._dynamo
+torch._dynamo.config.suppress_errors = True
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
-
+from transformers import GPT2TokenizerFast
 from model import GPTConfig, GPT
 
 # -----------------------------------------------------------------------------
@@ -117,9 +119,9 @@ def get_batch(split):
     # We recreate np.memmap every batch to avoid a memory leak, as per
     # https://stackoverflow.com/questions/45132940/numpy-memmap-memory-usage-want-to-iterate-once/61472122#61472122
     if split == 'train':
-        data = np.memmap('/home/danganhdat/.cache/huggingface/hub/datasets--danganhdat--bins/snapshots/d365033ca62cb61e54d40fffc6b465c390ffef59/train_10B_tokens_.bin', dtype=np.uint16, mode='r')
+        data = np.memmap('/root/.cache/huggingface/hub/datasets--danganhdat--bins/snapshots/d365033ca62cb61e54d40fffc6b465c390ffef59/train_10B_tokens_.bin', dtype=np.uint16, mode='r')
     else:
-        data = np.memmap('/home/danganhdat/.cache/huggingface/hub/datasets--danganhdat--bins/snapshots/d365033ca62cb61e54d40fffc6b465c390ffef59/val_5M_tokens_.bin', dtype=np.uint16, mode='r')
+        data = np.memmap('/root/.cache/huggingface/hub/datasets--danganhdat--bins/snapshots/d365033ca62cb61e54d40fffc6b465c390ffef59/val_5M_tokens_.bin', dtype=np.uint16, mode='r')
     ix = torch.randint(len(data) - block_size, (batch_size,))
     x = torch.stack([torch.from_numpy((data[i:i+block_size]).astype(np.int64)) for i in ix])
     y = torch.stack([torch.from_numpy((data[i+1:i+1+block_size]).astype(np.int64)) for i in ix])
@@ -193,7 +195,8 @@ if block_size < model.config.block_size:
 model.to(device)
 
 # initialize a GradScaler. If enabled=False scaler is a no-op
-scaler = torch.cuda.amp.GradScaler(enabled=(dtype == 'float16'))
+# scaler = torch.cuda.amp.GradScaler(enabled=(dtype == 'float16'))
+scaler = torch.amp.GradScaler('cuda', enabled=(dtype == 'float16'))
 
 # optimizer
 optimizer = model.configure_optimizers(weight_decay, learning_rate, (beta1, beta2), device_type)
