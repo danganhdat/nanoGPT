@@ -119,9 +119,9 @@ def get_batch(split):
     # We recreate np.memmap every batch to avoid a memory leak, as per
     # https://stackoverflow.com/questions/45132940/numpy-memmap-memory-usage-want-to-iterate-once/61472122#61472122
     if split == 'train':
-        data = np.memmap('/home/danganhdat3004/workspace/nanoGPT/data/vndataset/val_5M_tokens.bin', dtype=np.uint16, mode='r')
+        data = np.memmap('/root/workspace/nanoGPT/data/vndataset/train_10B_tokens.bin', dtype=np.uint16, mode='r')
     else:
-        data = np.memmap('/home/danganhdat3004/workspace/nanoGPT/data/vndataset/val_5M_tokens.bin', dtype=np.uint16, mode='r')
+        data = np.memmap('/root/workspace/nanoGPT/data/vndataset/val_5M_tokens.bin', dtype=np.uint16, mode='r')
     ix = torch.randint(len(data) - block_size, (batch_size,))
     x = torch.stack([torch.from_numpy((data[i:i+block_size]).astype(np.int64)) for i in ix])
     y = torch.stack([torch.from_numpy((data[i+1:i+1+block_size]).astype(np.int64)) for i in ix])
