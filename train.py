@@ -42,7 +42,7 @@ eval_only = False # if True, script exits right after the first eval
 always_save_checkpoint = True # if True, always save a checkpoint after each eval
 init_from = 'scratch' # 'scratch' or 'resume' or 'gpt2*'
 # wandb logging
-wandb_log = False # disabled by default
+wandb_log = True # disabled by default
 wandb_project = 'owt'
 wandb_run_name = 'gpt2' # 'run' + str(time.time())
 # data
@@ -119,9 +119,9 @@ def get_batch(split):
     # We recreate np.memmap every batch to avoid a memory leak, as per
     # https://stackoverflow.com/questions/45132940/numpy-memmap-memory-usage-want-to-iterate-once/61472122#61472122
     if split == 'train':
-        data = np.memmap('/root/.cache/huggingface/hub/datasets--danganhdat--bins/snapshots/d365033ca62cb61e54d40fffc6b465c390ffef59/train_10B_tokens_.bin', dtype=np.uint16, mode='r')
+        data = np.memmap('/home/danganhdat3004/workspace/nanoGPT/data/vndataset/val_5M_tokens.bin', dtype=np.uint16, mode='r')
     else:
-        data = np.memmap('/root/.cache/huggingface/hub/datasets--danganhdat--bins/snapshots/d365033ca62cb61e54d40fffc6b465c390ffef59/val_5M_tokens_.bin', dtype=np.uint16, mode='r')
+        data = np.memmap('/home/danganhdat3004/workspace/nanoGPT/data/vndataset/val_5M_tokens.bin', dtype=np.uint16, mode='r')
     ix = torch.randint(len(data) - block_size, (batch_size,))
     x = torch.stack([torch.from_numpy((data[i:i+block_size]).astype(np.int64)) for i in ix])
     y = torch.stack([torch.from_numpy((data[i+1:i+1+block_size]).astype(np.int64)) for i in ix])
