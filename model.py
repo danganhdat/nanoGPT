@@ -14,6 +14,7 @@ from dataclasses import dataclass
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+from huggingface_hub import PyTorchModelHubMixin
 
 class LayerNorm(nn.Module):
     """ LayerNorm but with an optional bias. PyTorch doesn't support simply bias=False """
@@ -30,7 +31,7 @@ class CausalSelfAttention(nn.Module):
 
     def __init__(self, config):
         super().__init__()
-        assert config.n_embd % config.n_head == 0
+        assert config.n_embd % config.n_head == 0, "n_embd must be divisible by n_head"
         # key, query, value projections for all heads, but in a batch
         self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd, bias=config.bias)
         # output projection
@@ -62,14 +63,6 @@ class CausalSelfAttention(nn.Module):
         if self.flash:
             # efficient attention using Flash Attention CUDA kernels
             y = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=self.dropout if self.training else 0, is_causal=True)
-            # Ensure attn_mask is compatible with expected shape and `batch_first=True`
-            # No need to manually adjust for num_heads; ensure it's right for the sequence
-            
-            # if self.context_length >= num_tokens:
-                # attn_mask = self.block_mask[:num_tokens, :num_tokens]
-            # else:
-                # attn_mask = self.block_mask[:self.context_length, :self.context_length]
-            # y = flex_attention(q, k, v, block_mask=attn_mask)
         else:
             # manual implementation of attention
             att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
@@ -123,7 +116,7 @@ class GPTConfig:
     dropout: float = 0.0
     bias: bool = True # True: bias in Linears and LayerNorms, like GPT-2. False: a bit better and faster
 
-class GPT(nn.Module):
+class GPT(nn.Module, PyTorchModelHubMixin):
 
     def __init__(self, config):
         super().__init__()
@@ -188,7 +181,9 @@ class GPT(nn.Module):
         for block in self.transformer.h:
             x = block(x)
         x = self.transformer.ln_f(x)
-
+        
+        # logits = self.lm_head(x) # change this
+        # loss = None # change this
         if targets is not None:
             # if we are given some desired targets also calculate the loss
             logits = self.lm_head(x)
@@ -332,7 +327,12 @@ class GPT(nn.Module):
             probs = F.softmax(logits, dim=-1)
             # sample from the distribution
             idx_next = torch.multinomial(probs, num_samples=1)
+                        
+            # Check if the generated token is the end token and stop if it is
+            if idx_next.item() == 19957:
+                break
+            
             # append sampled index to the running sequence and continue
             idx = torch.cat((idx, idx_next), dim=1)
-
+            
         return idx
